@@ -94,7 +94,7 @@ math::calc() {
 # ==================================================
 
 
-__tty_size(){
+__tty_size() {
   set -- $(stty size)
   HEIGHT=$1
   WIDTH=$2
@@ -192,7 +192,7 @@ __progress_string() {
   return 0
 }
 
-__draw_status_line(){
+__draw_status_line() {
   __tty_size
   if (( HEIGHT < 1 || WIDTH < 1 )); then
     return 1
@@ -298,14 +298,14 @@ bar::status_changed() {
 # ==================================================
 
 
-handle_sigwinch(){
+handle_sigwinch() {
   __tty_size
   n_rows=$HEIGHT
   __change_scroll_area $n_rows
   __draw_status_line
 }
 
-handle_exit(){
+handle_exit() {
   #-- if stop_exit doesn't have value it means it wasn't invoked
   (( ! ${E_STOP_INVOKED:-0} )) && bar::stop
   trap - EXIT
