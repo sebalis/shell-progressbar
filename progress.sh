@@ -25,8 +25,8 @@ set -a
 # FUTURE :   For future changes, this must be considered
 # IDEA   :   Ideas for future improvement or added features
 
-percentage="0.0"
-last_reported_progress=-1
+percentage=""
+last_reported_progress=""
 
 #-- In which rate reporting should be done
 reporting_steps=${reporting_steps:-1}       # reporting_step can be set by the caller, defaults to 1
@@ -248,6 +248,10 @@ bar::start() {
   #-- TODO: Track process that called this function
   # proc...
   E_START_INVOKED=-1
+  #-- reset bar state
+  percentage="0.0"
+  last_reported_progress=-1
+  reporting_steps=${reporting_steps:-1}
   __tty_size
   __change_scroll_area $HEIGHT
 }
