@@ -138,10 +138,13 @@ __change_scroll_area() {
 }
 
 __status_changed() {
-  local -i StepsDone TotalSteps __int_percentage
-  
-  ((StepsDone=$1))
-  ((TotalSteps=$2))
+  local StepsDone TotalSteps
+  local -i __int_percentage
+
+  __is_number "$1" || return
+  __is_number "$2" || return
+  StepsDone="$1"
+  TotalSteps="$2"
   
   #-- FIXME
   #-- Sanity check reporting_steps, if this value is too big no progress will be written
@@ -229,6 +232,17 @@ __draw_status_line() {
   return 0
 }
 
+# checks if $1 is a floating-point number
+# (leading zeros forbidden, digits before and after decimal point required, scientific notation allowed)
+__is_number() {
+  if [[ "$1" =~ ^[+-]?(0|[1-9][0-9]*)([.][0-9]+)?(e[+-]?(0|[1-9][0-9]*))?$ ]]; then
+    return 0
+  else
+    echo "Not a number: $1" >&2
+    return 1
+  fi
+}
+
 
 bar::start() {
   #-- TODO: Track process that called this function
@@ -276,12 +290,8 @@ bar::status_changed() {
     echo "Exiting.."
     exit 1
   fi
-  local -i StepsDone TotalSteps
 
-  ((StepsDone=$1))
-  ((TotalSteps=$2))
-
-  if ! __status_changed $StepsDone $TotalSteps; then
+  if ! __status_changed "$1" "$2"; then
     return 1
   fi
   
