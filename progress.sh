@@ -31,6 +31,9 @@ last_reported_progress=""
 #-- In which rate reporting should be done
 reporting_steps=${reporting_steps:-1}       # reporting_step can be set by the caller, defaults to 1
 
+#-- progress bar mode: percent, eta (time estimate), wait (time estimate)
+bar_mode="${bar_mode:-percent}"
+
 foreground="${foreground:-$(tput setaf 0)}" # Foreground can be set by the caller, defaults to black
 background="${background:-$(tput setab 2)}" # Background can be set by the caller, defaults to green
 reset_color="$(tput sgr0)"
@@ -82,6 +85,63 @@ math::max() {
 math::calc() {
   #-- Normal calculator
   awk "BEGIN{print $*}"
+}
+
+math::linear_regression() {
+  #-- Fit a straight line to some x and y data and calculate an (x/y) estimate for a (y/x) target value.
+  #-- Parameters are: x values and y values (both as a single string, values separated by space), target axis (x or y), and target value
+  #-- The estimate will be written to stdout if it can be calculated.
+  #-- Nothing is written if there is not enough data, or if the fitted line is vertical, or if it is horizontal and the target axis is y.
+  #-- The return value of the function reflects whether an estimate was produced (0) or not (1).
+  awk "
+    BEGIN {
+      n_x = split(\"$1\", data_x, \" \")
+      n_y = split(\"$2\", data_y, \" \")
+      if (n_x < n_y) n = n_x; else n = n_y
+      if (n < 2) exit 1
+      target_axis=\"$3\"
+      target = $4
+      min_x = \"\"
+      for (i = 1; i <= n; ++i) {
+        x = data_x[i]
+        if (length(min_x) == 0 || x < min_x) {
+          min_x = x
+        }
+      }
+      sum_x = 0
+      sum_x2 = 0
+      sum_y = 0
+      sum_xy = 0
+      for (i = 1; i <= n; ++i) {
+        x = data_x[i] - min_x
+        y = data_y[i]
+        sum_x += x
+        sum_x2 += x * x
+        sum_y += y
+        sum_xy += x * y
+      }
+      avg_x = sum_x / n
+      avg_y = sum_y / n
+      m_y = sum_xy - sum_y * avg_x
+      m_x = sum_x2 - sum_x * avg_x
+      estimate = \"\"
+      if (m_x != 0) {
+        m = m_y / m_x
+        y0 = avg_y - avg_x * m
+        if (target_axis == \"x\") {
+          estimate = y0 + (target - min_x) * m
+        } else if (target_axis == \"y\" && m != 0) {
+          estimate = min_x + (target - y0) / m
+        }
+      }
+      if (length(estimate)) {
+        print estimate
+        exit 0
+      } else {
+        exit 1
+      }
+    }
+  "
 }
 
 
@@ -138,28 +198,44 @@ __change_scroll_area() {
 }
 
 __status_changed() {
-  local StepsDone TotalSteps
+  local StepsDone TotalSteps time_estimate seconds_remaining hours_remaining remain_sign
   local -i __int_percentage
 
   __is_number "$1" || return
   __is_number "$2" || return
   StepsDone="$1"
   TotalSteps="$2"
-  
+
   #-- FIXME
   #-- Sanity check reporting_steps, if this value is too big no progress will be written
   #-- Should that really be checked here?
 
   percentage=$(math::calc "$(math::calc "$StepsDone/$TotalSteps")*100.00")
+  sampled_times+=($(( $(date '+%s') - $start_time )))
+  sampled_pctgs+=($percentage)
 
   ((__int_percentage=$(math::round "$percentage")))
 
-  printf -v progress_str "Progress: [%3li%%]" $__int_percentage
-
   if (( __int_percentage < (last_reported_progress + reporting_steps) )); then
     return 1
+  fi
+
+  time_estimate=$(math::linear_regression "${sampled_times[*]}" "${sampled_pctgs[*]}" y 100)
+  if [ -n "$time_estimate" ] && [ "$bar_mode" == "eta" ]; then
+    #-- FIXME: add indication when ETA is 24 hours or more into the future
+    progress_str="ETA:  [$(date +%H:%M:%S --date="@$(( start_time + $(math::round $time_estimate) ))")]"
+  elif [ -n "$time_estimate" ] && [ "$bar_mode" == "wait" ]; then
+    seconds_remaining=$(( start_time + $(math::round $time_estimate) - $(date '+%s') ))
+    if (( seconds_remaining < 0 )); then
+      remain_sign="-"
+      seconds_remaining=$(( -seconds_remaining ))
+    else
+      remain_sign=""
+    fi
+    printf -v hours_remaining "%s%d" "$remain_sign" $(( seconds_remaining / 3600 ))
+    printf -v progress_str "Wait: [%2s:%02d:%02d]" "$hours_remaining" $(( (seconds_remaining % 3600 ) / 60 )) $(( seconds_remaining % 60 ))
   else
-    return 0
+    printf -v progress_str "Progress: [%3li%%]" $__int_percentage
   fi
 }
 
@@ -252,6 +328,17 @@ bar::start() {
   percentage="0.0"
   last_reported_progress=-1
   reporting_steps=${reporting_steps:-1}
+  bar_mode="${bar_mode:-percent}"
+  case "$bar_mode" in
+    percent|eta|wait)
+      ;;
+    *)
+      echo "bar_mode is '$bar_mode' - supported values: percent, eta, wait" >&2
+      ;;
+  esac
+  start_time=$(date '+%s')
+  unset sampled_times sampled_pctgs
+  declare -a sampled_times sampled_pctgs
   __tty_size
   __change_scroll_area $HEIGHT
 }

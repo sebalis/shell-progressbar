@@ -7,6 +7,7 @@
 - [Usage](#usage)
   - [Example](#example)
 - [Customization](#customization)
+- [Time Estimates](#time-estimates)
 
 ![bar](https://raw.githubusercontent.com/phenonymous/shell-progressbar/master/images/progressbar.gif)
 
@@ -87,3 +88,14 @@ foreground="$(tput setaf 0)" # black
 background="$(tput setab 2)" # green
 ```
 you can also tweak how often reporting should be done (in case of great number of steps and quick progressing) by setting `reporting_steps` to a value bigger than 1
+
+### Time Estimates
+
+The progress bar records the times and the progress values each time `bar::status_changed` is called. Using this data an estimate can be calculated of the time when the task will be done. If configured to do so, the progress display will switch to this estimate as soon as enough data is available (at least two status changes with actual progress between them). To see this, set the variable `bar_mode` before sourcing `progress.sh` or before calling `bar::start`. Possible values are
+
+```sh
+bar_mode=percent  # default, show only percentages
+bar_mode=eta      # show estimated time of completion (marked “ETA”) when an estimate is available
+bar_mode=wait     # show estimated time remaining (marked “Time”) when an estimate is available
+```
+
