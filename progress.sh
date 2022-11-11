@@ -222,8 +222,17 @@ __status_changed() {
 
   time_estimate=$(math::linear_regression "${sampled_times[*]}" "${sampled_pctgs[*]}" y 100)
   if [ -n "$time_estimate" ] && [ "$bar_mode" == "eta" ]; then
-    #-- FIXME: add indication when ETA is 24 hours or more into the future
-    progress_str="ETA:  [$(date +%H:%M:%S --date="@$(( start_time + $(math::round $time_estimate) ))")]"
+    time_estimate=$(math::round $time_estimate)
+    seconds_remaining=$(( start_time + time_estimate - $(date '+%s') ))
+    if (( seconds_remaining > 24 * 60 * 60 * 365 )); then
+      printf -v progress_str "ETA:  [%+7.1fy]" $(math::calc "$seconds_remaining / $(( 24 * 60 * 60 * 365 ))")
+    elif (( seconds_remaining > 24 * 60 * 60 * 7 )); then
+      printf -v progress_str "ETA:  [%+7.1fw]" $(math::calc "$seconds_remaining / $(( 24 * 60 * 60 * 7 ))")
+    elif (( seconds_remaining > 24 * 60 * 60 )); then
+      printf -v progress_str "ETA:  [%+7.1fd]" $(math::calc "$seconds_remaining / $(( 24 * 60 * 60 ))")
+    else
+      printf -v progress_str "ETA:  [%(%H:%M:%S)T]" $(( start_time + time_estimate ))
+    fi
   elif [ -n "$time_estimate" ] && [ "$bar_mode" == "wait" ]; then
     seconds_remaining=$(( start_time + $(math::round $time_estimate) - $(date '+%s') ))
     if (( seconds_remaining < 0 )); then
