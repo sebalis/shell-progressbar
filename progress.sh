@@ -417,7 +417,7 @@ handle_sigwinch() {
 
 handle_exit() {
   #-- if stop_exit doesn't have value it means it wasn't invoked
-  (( ! ${E_STOP_INVOKED:-0} )) && bar::stop
+  (( ${E_START_INVOKED:-0} && ! ${E_STOP_INVOKED:-0} )) && bar::stop
   trap - EXIT
   exit
 }
