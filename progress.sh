@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+if [ -z "$_progress_included" ]; then
+	_progress_included=true
+else
+	return 0
+fi
+
 #    An asynchronous progress bar inspired by APT PackageManagerFancy Progress
 #    Copyright (C) 2018  Kristoffer Minya
 #
