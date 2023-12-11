@@ -51,14 +51,42 @@ FILL="${FILL:-#}"
 REMAIN="${REMAIN:-.}"
 
 #-- Command aliases for readability
-save_cursor='tput sc'
-restore_cursor='tput rc'
-disable_cursor='tput civis'
-enable_cursor='tput cnorm'
-scroll_area='tput csr'
-move_to='tput cup'
-move_up='tput cuu'
-flush='tput ed'
+___stty() {
+	stty ${1+"$@"} </dev/tty
+}
+___echo() {
+	echo ${1+"$@"} >/dev/tty
+}
+___printf() {
+	printf ${1+"$@"} >/dev/tty
+}
+___tput() {
+	tput ${1+"$@"} >/dev/tty
+}
+___save_cursor() {
+	___tput sc ${1+"$@"}
+}
+___restore_cursor() {
+	___tput rc ${1+"$@"}
+}
+___disable_cursor() {
+	___tput civis ${1+"$@"}
+}
+___enable_cursor() {
+	___tput cnorm ${1+"$@"}
+}
+___scroll_area() {
+	___tput csr ${1+"$@"}
+}
+___move_to() {
+	___tput cup ${1+"$@"}
+}
+___move_up() {
+	___tput cuu ${1+"$@"}
+}
+___flush() {
+	___tput ed ${1+"$@"}
+}
 
 
 # Bash does not handle floats
@@ -161,7 +189,7 @@ math::linear_regression() {
 
 
 __tty_size() {
-  set -- $(stty size)
+  set -- $(___stty size)
   HEIGHT=$1
   WIDTH=$2
 }
@@ -177,21 +205,21 @@ __change_scroll_area() {
 
   #-- Go down one line to avoid visual glitch 
   #-- when terminal scroll region shrinks by 1
-  echo
+  ___echo
 
   #-- Save cursor position
-  eval "${save_cursor}"
+  ___save_cursor
 
   #-- Set scroll region
-  eval "${scroll_area} 0 $n_rows"
+  ___scroll_area 0 $n_rows
 
   #-- Restore cursor
-  eval "${restore_cursor}"
+  ___restore_cursor
 
   #-- Move up 1 line in case cursor was saved outside scroll region
-  eval "${move_up} 2"
+  ___move_up 2
 
-  echo
+  ___echo
 
   #-- Set tty size to reflect changes to scroll region
   #-- this is to avoid i.e pagers to override the progress bar
@@ -199,7 +227,7 @@ __change_scroll_area() {
 
   #-- Temporarily disabling SIGWINCH to avoid a loop caused by stty sending SIGWINCH whenever theres a change in size
   trap '' WINCH
-  stty rows $n_rows
+  ___stty rows $n_rows
   trap handle_sigwinch WINCH
 }
 
@@ -299,24 +327,24 @@ __draw_status_line() {
   progress_bar=""
 
   #-- Save the cursor
-  eval "${save_cursor}"
+  ___save_cursor
   #-- Make cursor invisible
-  eval "${disable_cursor}"
+  ___disable_cursor
 
   #-- Move to last row
-  eval "${move_to} $((HEIGHT)) 0"
-  printf '%s' "${background}${foreground}${progress_str}${reset_color}"
+  ___move_to $((HEIGHT)) 0
+  ___printf '%s' "${background}${foreground}${progress_str}${reset_color}"
 
   ((progressbar_size=WIDTH-padding-${#progress_str}))
   current_percent=$(math::calc "$percentage/100.00")
   
   progress_bar="$(__progress_string "${current_percent}" ${progressbar_size})"
 
-  printf '%s' " ${progress_bar} "
+  ___printf '%s' " ${progress_bar} "
 
   #-- Restore the cursor
-  eval "${restore_cursor}"
-  eval "${enable_cursor}"
+  ___restore_cursor
+  ___enable_cursor
 
   ((last_reported_progress=$(math::round "$percentage")))
 
@@ -338,6 +366,11 @@ __is_number() {
 bar::start() {
   #-- TODO: Track process that called this function
   # proc...
+  # Check if /dev/tty is available
+  if ! bash -c ': >/dev/tty </dev/tty' >/dev/null 2>&1; then
+    echo "Can't read/write /dev/tty" >&2
+    return 1
+  fi
   E_START_INVOKED=-1
   #-- reset bar state
   percentage="0.0"
@@ -362,7 +395,7 @@ bar::stop() {
   E_STOP_INVOKED=-1
   if (( ! ${E_START_INVOKED:-0} )); then
     echo "Warn: bar::stop called but bar::start was not invoked" >&2 
-    echo "Returning.." # Exit or return?
+    ___echo "Returning." # Exit or return?
     return 1
   fi
   #-- Reset bar::start check
@@ -374,15 +407,15 @@ bar::stop() {
     __change_scroll_area $((HEIGHT+2))
 
     #-- tput ed might fail (OS X) in which case we force clear
-    trap 'printf "\033[J"' ERR
+    trap '___printf "\033[J"' ERR
 
     #-- Flush progress bar
-    eval "${flush}"
+    ___flush
    
     trap - ERR
     #-- Go up one row after flush
-    eval "${move_up} 1"
-    echo
+    ___move_up 1
+    ___echo
   fi
   #-- Restore original (if any) handler
   trap - WINCH
@@ -393,7 +426,7 @@ bar::stop() {
 bar::status_changed() {
   if (( ! ${E_START_INVOKED:-0} )); then
     echo "ERR: bar::start not called" >&2
-    echo "Exiting.."
+    ___echo "Exiting."
     exit 1
   fi
 
